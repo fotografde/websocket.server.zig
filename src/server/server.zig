@@ -806,11 +806,11 @@ const KQueue = struct {
     }
 
     fn monitorAccept(self: *KQueue, fd: c_int) !void {
-        try self.change(fd, 0, posix.system.EVFILT.READ, posix.system.EV.ADD);
+        try self.change(fd, 0, posix.system.EVFILT_READ, posix.system.EV_ADD);
     }
 
     fn monitorSignal(self: *KQueue, fd: c_int) !void {
-        try self.change(fd, 1, posix.system.EVFILT.READ, posix.system.EV.ADD);
+        try self.change(fd, 1, posix.system.EVFILT_READ, posix.system.EV_ADD);
     }
 
     // Normally, we add the socket in the worker thread with rearm == false.
@@ -822,12 +822,12 @@ const KQueue = struct {
     // taking over a connection (say from httpz). Hence, we need the EV.ADD flag too.
     fn monitorRead(self: *KQueue, hc: anytype, comptime rearm: bool) !void {
         if (rearm == false) {
-            return self.change(hc.socket, @intFromPtr(hc), posix.system.EVFILT.READ, posix.system.EV.ADD | posix.system.EV.ENABLE | posix.system.EV.DISPATCH);
+            return self.change(hc.socket, @intFromPtr(hc), posix.system.EVFILT_READ, posix.system.EV_ADD | posix.system.EV_ENABLE | posix.system.EV_DISPATCH);
         }
         const event = Kevent{
             .ident = @intCast(hc.socket),
-            .filter = posix.system.EVFILT.READ,
-            .flags = posix.system.EV.ADD | posix.system.EV.ENABLE | posix.system.EV.DISPATCH,
+            .filter = posix.system.EVFILT_READ,
+            .flags = posix.system.EV_ADD | posix.system.EV_ENABLE | posix.system.EV_DISPATCH,
             .fflags = 0,
             .data = 0,
             .udata = @intFromPtr(hc),
@@ -857,7 +857,7 @@ const KQueue = struct {
 
     fn wait(self: *KQueue, timeout_sec: ?i32) !Iterator {
         const event_list = &self.event_list;
-        const timeout: ?posix.timespec = if (timeout_sec) |ts| posix.timespec{ .sec = ts, .nsec = 0 } else null;
+        const timeout: ?posix.timespec = if (timeout_sec) |ts| posix.timespec{ .tv_sec = ts, .tv_nsec = 0 } else null;
         const event_count = try posix.kevent(self.q, self.change_buffer[0..self.change_count], event_list, if (timeout) |ts| &ts else null);
         self.change_count = 0;
 
@@ -1441,7 +1441,7 @@ fn _handleHandshake(comptime H: type, worker: anytype, hc: *HandlerConn(H), ctx:
     try conn.writeFramed(&Handshake.createReply(handshake.key));
 
     if (comptime std.meta.hasFn(H, "afterInit")) {
-        const params = @typeInfo(@TypeOf(H.afterInit)).@"fn".params;
+        const params = @typeInfo(@TypeOf(H.afterInit)).Fn.params;
         const res = if (params.len == 1) hc.handler.?.afterInit() else hc.handler.?.afterInit(ctx);
         res catch |err| {
             log.debug("({}) " ++ @typeName(H) ++ ".afterInit error: {}", .{ conn.address, err });
@@ -1493,7 +1493,7 @@ fn _handleClientData(comptime H: type, hc: *HandlerConn(H), allocator: Allocator
         log.debug("({}) received {s} message", .{ hc.conn.address, @tagName(message_type) });
         switch (message_type) {
             .text, .binary => {
-                const params = @typeInfo(@TypeOf(H.clientMessage)).@"fn".params;
+                const params = @typeInfo(@TypeOf(H.clientMessage)).Fn.params;
                 const needs_allocator = comptime needsAllocator(H);
 
                 var arena: std.heap.ArenaAllocator = undefined;
@@ -1597,7 +1597,7 @@ fn _handleClientData(comptime H: type, hc: *HandlerConn(H), allocator: Allocator
 }
 
 fn needsAllocator(comptime H: type) bool {
-    const params = @typeInfo(@TypeOf(H.clientMessage)).@"fn".params;
+    const params = @typeInfo(@TypeOf(H.clientMessage)).Fn.params;
     return comptime params[1].type == Allocator;
 }
 
@@ -1636,7 +1636,7 @@ fn preHandOffWrite(conn: *Conn, response: []const u8) void {
     }
 
     const socket = conn.stream.handle;
-    const timeout = std.mem.toBytes(posix.timeval{ .sec = 5, .usec = 0 });
+    const timeout = std.mem.toBytes(posix.timeval{ .tv_sec = 5, .tv_usec = 0 });
     posix.setsockopt(socket, posix.SOL.SOCKET, posix.SO.SNDTIMEO, &timeout) catch return;
 
     var pos: usize = 0;
@@ -1656,7 +1656,7 @@ fn timestamp() u32 {
     }
     var ts: posix.timespec = undefined;
     posix.clock_gettime(posix.CLOCK.REALTIME, &ts) catch unreachable;
-    return @intCast(ts.sec);
+    return @intCast(ts.tv_sec);
 }
 
 // intrusive doubly-linked list with count, not thread safe
