@@ -1554,7 +1554,7 @@ fn _handleHandshake(comptime H: type, worker: anytype, hc: *HandlerConn(H), ctx:
     // After this, the app has access to &hc.conn, so any access to the
     // conn has to be synchronized (which the conn does internally).
 
-    const handler = H.init(&handshake, conn, ctx) catch |err| {
+    const handler = H.init(handshake, conn, ctx) catch |err| {
         if (comptime std.meta.hasFn(H, "handshakeErrorResponse")) {
             preHandOffWrite(H.handshakeErrorResponse(err));
         } else {
